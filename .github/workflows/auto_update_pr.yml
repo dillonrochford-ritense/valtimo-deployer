@@ -1,5 +1,9 @@
-name: Auto-update PRs when their target branch is updated
-on: push # Triggers on all branches. So any time a PR's target branch updates, the PR gets updated as well
+name: "Auto-update PRs (upstream - disabled)"
+
+# Disabled in deployer fork: relies on upstream GitHub App secrets.
+# Kept for merge compatibility with upstream valtimo repo.
+on:
+  workflow_dispatch:
 jobs:
   autoupdate:
     name: autoupdate
