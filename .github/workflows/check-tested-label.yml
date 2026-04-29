@@ -1,10 +1,12 @@
-name: Check for "tested" label
+name: "Check for tested label (upstream - disabled)"
+
+# Disabled in deployer fork: not needed for deployer workflow.
+# Kept for merge compatibility with upstream valtimo repo.
 permissions:
     contents: read
 
 on:
-    pull_request:
-        types: [labeled, unlabeled, opened, synchronize, reopened]
+    workflow_dispatch:
 
 jobs:
     label-check:
