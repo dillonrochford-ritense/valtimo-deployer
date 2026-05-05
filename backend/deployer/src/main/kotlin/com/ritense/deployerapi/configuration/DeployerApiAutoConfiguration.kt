@@ -17,9 +17,12 @@
 package com.ritense.deployerapi.configuration
 
 import com.ritense.case.service.CaseDefinitionService
+import com.ritense.case_.repository.CaseDefinitionRepository
 import com.ritense.deployerapi.security.config.DeployerApiHttpSecurityConfigurer
 import com.ritense.deployerapi.web.rest.DeployerCaseDefinitionResource
 import com.ritense.deployerapi.web.rest.DeployerOpenApiResource
+import com.ritense.exporter.ExportService
+import com.ritense.importer.ImportService
 import org.springdoc.core.models.GroupedOpenApi
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -33,8 +36,16 @@ class DeployerApiAutoConfiguration {
     @ConditionalOnMissingBean(DeployerCaseDefinitionResource::class)
     fun deployerCaseDefinitionResource(
         caseDefinitionService: CaseDefinitionService,
+        exportService: ExportService,
+        importService: ImportService,
+        caseDefinitionRepository: CaseDefinitionRepository,
     ): DeployerCaseDefinitionResource {
-        return DeployerCaseDefinitionResource(caseDefinitionService)
+        return DeployerCaseDefinitionResource(
+            caseDefinitionService,
+            exportService,
+            importService,
+            caseDefinitionRepository,
+        )
     }
 
     @Bean

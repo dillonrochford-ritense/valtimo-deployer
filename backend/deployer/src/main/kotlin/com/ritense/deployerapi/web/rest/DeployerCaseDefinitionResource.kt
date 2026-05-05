@@ -17,59 +17,120 @@
 package com.ritense.deployerapi.web.rest
 
 import com.ritense.case.service.CaseDefinitionService
+import com.ritense.case.web.rest.dto.CaseDefinitionImportResponse
 import com.ritense.case.web.rest.dto.CaseDefinitionResponseDto
-import com.ritense.deployerapi.web.rest.dto.ErrorResponseDto
+import com.ritense.case_.repository.CaseDefinitionRepository
+import com.ritense.exporter.ExportService
+import com.ritense.exporter.request.CaseDefinitionExportRequest
+import com.ritense.importer.ImportService
+import com.ritense.importer.exception.ImportServiceException
 import com.ritense.valtimo.contract.annotation.SkipComponentScan
+import com.ritense.valtimo.contract.case_.CaseDefinitionId
 import com.ritense.valtimo.contract.domain.ValtimoMediaType.APPLICATION_JSON_UTF8_VALUE
+import io.github.oshai.kotlinlogging.KotlinLogging
+import io.swagger.v3.oas.annotations.media.ArraySchema
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
-import io.swagger.v3.oas.annotations.responses.ApiResponses
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import com.ritense.deployerapi.web.rest.dto.ImportRequestDto
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @RestController
 @SkipComponentScan
 @RequestMapping("/api/deployer/v1", produces = [APPLICATION_JSON_UTF8_VALUE])
 class DeployerCaseDefinitionResource(
     private val caseDefinitionService: CaseDefinitionService,
+    private val exportService: ExportService,
+    private val importService: ImportService,
+    private val caseDefinitionRepository: CaseDefinitionRepository,
 ) {
 
     @GetMapping("/case-definition")
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "OK"),
-        ApiResponse(
-            responseCode = "400",
-            description = "Bad Request",
-            content = [Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = Schema(implementation = ErrorResponseDto::class)
-            )]
-        ),
-        ApiResponse(
-            responseCode = "404",
-            description = "Not Found",
-            content = [Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = Schema(implementation = ErrorResponseDto::class)
-            )]
-        ),
-        ApiResponse(
-            responseCode = "500",
-            description = "Internal Server Error",
-            content = [Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = Schema(implementation = ErrorResponseDto::class)
-            )]
-        )
+    @DeployerApiResponses
+    @ApiResponse(
+        responseCode = "200",
+        description = "OK",
+        content = [Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            array = ArraySchema(schema = Schema(implementation = CaseDefinitionResponseDto::class))
+        )]
     )
     fun getCaseDefinitions(): ResponseEntity<List<CaseDefinitionResponseDto>> {
         val caseDefinitions = caseDefinitionService.getCaseDefinitions(
             active = true,
         )
         return ResponseEntity.ok(caseDefinitions.map { CaseDefinitionResponseDto.of(it) })
+    }
+
+    @GetMapping(
+        "/case-definition/{caseDefinitionKey}/version/{caseDefinitionVersionTag}/export",
+        produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE]
+    )
+    @DeployerApiResponses
+    @ApiResponse(
+        responseCode = "200",
+        description = "OK",
+        content = [Content(
+            mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+            schema = Schema(type = "string", format = "binary")
+        )]
+    )
+    fun getExport(
+        @PathVariable caseDefinitionKey: String,
+        @PathVariable caseDefinitionVersionTag: String,
+    ): ResponseEntity<ByteArray> {
+        val baos = exportService
+            .export(CaseDefinitionExportRequest(CaseDefinitionId(caseDefinitionKey, caseDefinitionVersionTag)))
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))
+        val fileName = "${caseDefinitionKey}_${caseDefinitionVersionTag}_$timestamp.case.zip"
+        return ResponseEntity
+            .ok()
+            .header("Content-Disposition", "attachment;filename=$fileName")
+            .body(baos.toByteArray())
+    }
+
+    @PostMapping("/case-definition/import", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @DeployerApiResponses
+    @ApiResponse(
+        responseCode = "200",
+        description = "OK",
+        content = [Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = Schema(implementation = CaseDefinitionImportResponse::class)
+        )]
+    )
+    fun import(
+        @RequestBody body: ImportRequestDto,
+        @RequestParam("key", required = false) key: String?,
+        @RequestParam("name", required = false) name: String?,
+    ): ResponseEntity<CaseDefinitionImportResponse> {
+        return try {
+            val skipImportOfCaseDefinitions = caseDefinitionRepository.findAllByFinalTrue().map { it.id }
+            val caseDefinitionId = importService.import(
+                body.file.inputStream(),
+                skipImportOfCaseDefinitions,
+                key,
+                name,
+            )
+            caseDefinitionService.setLatestToActiveIfNoneIsActive()
+            ResponseEntity.ok(CaseDefinitionImportResponse(caseDefinitionId))
+        } catch (exception: ImportServiceException) {
+            logger.info(exception) { "Import failed" }
+            ResponseEntity.badRequest().build()
+        }
+    }
+
+    companion object {
+        private val logger = KotlinLogging.logger {}
     }
 }
