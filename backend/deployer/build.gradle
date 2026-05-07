@@ -16,6 +16,7 @@
 
 dependencies {
     api project(":backend:contract")
+    implementation project(":backend:authorization")
     implementation project(":backend:case")
     implementation project(":backend:exporter")
     implementation project(":backend:importer")
