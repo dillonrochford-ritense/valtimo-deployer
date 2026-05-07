@@ -24,6 +24,7 @@ import com.ritense.exporter.ExportService
 import com.ritense.exporter.request.CaseDefinitionExportRequest
 import com.ritense.importer.ImportService
 import com.ritense.importer.exception.ImportServiceException
+import com.ritense.authorization.annotation.RunWithoutAuthorization
 import com.ritense.valtimo.contract.annotation.SkipComponentScan
 import com.ritense.valtimo.contract.case_.CaseDefinitionId
 import com.ritense.valtimo.contract.domain.ValtimoMediaType.APPLICATION_JSON_UTF8_VALUE
@@ -65,6 +66,7 @@ class DeployerCaseDefinitionResource(
             array = ArraySchema(schema = Schema(implementation = CaseDefinitionResponseDto::class))
         )]
     )
+    @RunWithoutAuthorization
     fun getCaseDefinitions(): ResponseEntity<List<CaseDefinitionResponseDto>> {
         val caseDefinitions = caseDefinitionService.getCaseDefinitions(
             active = true,
@@ -85,6 +87,7 @@ class DeployerCaseDefinitionResource(
             schema = Schema(type = "string", format = "binary")
         )]
     )
+    @RunWithoutAuthorization
     fun getExport(
         @PathVariable caseDefinitionKey: String,
         @PathVariable caseDefinitionVersionTag: String,
@@ -109,6 +112,7 @@ class DeployerCaseDefinitionResource(
             schema = Schema(implementation = CaseDefinitionImportResponse::class)
         )]
     )
+    @RunWithoutAuthorization
     fun import(
         @RequestBody body: ImportRequestDto,
         @RequestParam("key", required = false) key: String?,
